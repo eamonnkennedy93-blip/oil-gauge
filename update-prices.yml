@@ -1,0 +1,40 @@
+name: Update weekly oil prices
+
+on:
+  schedule:
+    # Fridays 08:05 UTC — the Consumer Council's archive typically has the
+    # new week's row by Thursday evening, this gives it a buffer.
+    - cron: "5 8 * * 5"
+  workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Run price update
+        run: python scripts/update_prices.py
+        # A non-zero exit here (the row-count guard, or a bounds-check
+        # ValueError) fails this step and the job goes red — on purpose,
+        # so a broken parse is loud instead of silently skipped.
+
+      - name: Commit and push if data actually changed
+        run: |
+          git config user.name "oil-gauge-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/weekly.json
+          git diff --staged --quiet && echo "No change this run." || (
+            git commit -m "Weekly price data refresh ($(date -u +%Y-%m-%d))"
+            git push
+          )

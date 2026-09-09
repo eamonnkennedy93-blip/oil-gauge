@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oil Gauge — NI heating oil price tracker</title>
+<meta name="description" content="Weekly Northern Ireland heating oil prices tracked against five years of history, with a buy-timing signal and a directory of local oil buying clubs.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EDF1F4;
+    --surface:#FFFFFF;
+    --surface-alt:#E2E8ED;
+    --ink:#161B22;
+    --ink-muted:#5B6572;
+    --border:#D4DCE2;
+    --accent:#B5691F;
+    --accent-ink:#8F4F13;
+    --accent-soft:#F5E4CE;
+    --good:#2E7D52;
+    --good-soft:#DFEEE4;
+    --warn:#B23A26;
+    --warn-soft:#F5DED8;
+    --grid:#C8D1D8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#11151B; --surface:#1A2029; --surface-alt:#212836;
+      --ink:#ECEEF2; --ink-muted:#8B95A5; --border:#2B3341;
+      --accent:#E3993F; --accent-ink:#F5B769; --accent-soft:#3A2A15;
+      --good:#5FBE8B; --good-soft:#1B3327; --warn:#E17158; --warn-soft:#3B2019;
+      --grid:#2A3441;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#11151B; --surface:#1A2029; --surface-alt:#212836;
+    --ink:#ECEEF2; --ink-muted:#8B95A5; --border:#2B3341;
+    --accent:#E3993F; --accent-ink:#F5B769; --accent-soft:#3A2A15;
+    --good:#5FBE8B; --good-soft:#1B3327; --warn:#E17158; --warn-soft:#3B2019;
+    --grid:#2A3441;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ background:var(--bg); }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:"Public Sans", system-ui, sans-serif; line-height:1.5; }
+  a{ color:var(--accent-ink); }
+  .wrap{ max-width:920px; margin:0 auto; padding:0 22px 90px; }
+  .num{ font-variant-numeric:tabular-nums; font-family:"JetBrains Mono", ui-monospace, monospace; }
+
+  .topnav{ display:flex; align-items:center; gap:4px; padding:18px 0; margin-bottom:6px; border-bottom:1px solid var(--border); }
+  .topnav .brand{ display:flex; align-items:center; gap:9px; margin-right:auto; text-decoration:none; color:var(--ink); }
+  .topnav .brand .mark{ width:22px; height:22px; border-radius:3px; background:var(--accent); position:relative; flex:none; }
+  .topnav .brand .mark::after{ content:""; position:absolute; left:5px; right:5px; bottom:4px; height:9px; background:var(--surface); border-radius:1px; opacity:.85; }
+  .topnav .brand .name{ font-family:"Big Shoulders Display", sans-serif; font-weight:700; font-size:19px; letter-spacing:.01em; }
+  .topnav a.tab{ font-family:"Big Shoulders Display", sans-serif; font-weight:600; font-size:14px; letter-spacing:.04em; text-transform:uppercase; padding:7px 13px; border-radius:6px; color:var(--ink-muted); text-decoration:none; }
+  .topnav a.tab:hover{ background:var(--surface-alt); }
+  .topnav a.tab.active{ background:var(--accent-soft); color:var(--accent-ink); }
+
+  .eyebrow{ font-family:"JetBrains Mono", monospace; font-weight:500; font-size:12px; letter-spacing:.09em; text-transform:uppercase; color:var(--accent-ink); margin:26px 0 9px; }
+  h1{ font-family:"Big Shoulders Display", sans-serif; font-weight:800; font-size:clamp(34px,5.4vw,50px); letter-spacing:-.005em; line-height:.98; margin:0 0 12px; text-wrap:balance; }
+  h2.section-title{ font-family:"Big Shoulders Display", sans-serif; font-weight:700; font-size:19px; letter-spacing:.01em; text-transform:uppercase; margin:0 0 4px; }
+  .sub{ color:var(--ink-muted); font-size:15.5px; max-width:62ch; margin:0 0 8px; }
+  .section-note{ color:var(--ink-muted); font-size:13.5px; max-width:64ch; margin:0 0 18px; }
+
+  .hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0 30px; }
+  @media (max-width:640px){ .hero-grid{ grid-template-columns:1fr; } }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px 22px; }
+  .price-card .lbl{ font-family:"JetBrains Mono", monospace; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-muted); margin-bottom:8px; }
+  .price-card .figure{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .price-card .figure .amt{ font-family:"Big Shoulders Display", sans-serif; font-weight:800; font-size:52px; line-height:1; letter-spacing:-.01em; }
+  .price-card .figure .delta{ font-family:"JetBrains Mono", monospace; font-size:14px; font-weight:600; padding:3px 8px; border-radius:5px; }
+  .delta.up{ background:var(--warn-soft); color:var(--warn); }
+  .delta.down{ background:var(--good-soft); color:var(--good); }
+  .delta.flat{ background:var(--surface-alt); color:var(--ink-muted); }
+  .price-card .tiers{ display:flex; gap:18px; margin-top:14px; }
+  .price-card .tiers .t{ font-size:12.5px; color:var(--ink-muted); }
+  .price-card .tiers .t b{ display:block; color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:14px; font-weight:600; }
+  .price-card .asof{ margin-top:14px; font-size:12px; color:var(--ink-muted); }
+
+  .gauge-card .lbl{ font-family:"JetBrains Mono", monospace; font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-muted); margin-bottom:10px; }
+  .gauge-track{ position:relative; height:10px; border-radius:6px; background:linear-gradient(90deg, var(--good) 0%, var(--surface-alt) 50%, var(--warn) 100%); margin:14px 2px 8px; }
+  .gauge-marker{ position:absolute; top:-6px; width:3px; height:22px; background:var(--ink); border-radius:2px; transform:translateX(-50%); }
+  .gauge-range{ display:flex; justify-content:space-between; font-family:"JetBrains Mono",monospace; font-size:11.5px; color:var(--ink-muted); }
+  .gauge-verdict{ margin-top:16px; font-size:15px; }
+  .gauge-verdict b{ color:var(--accent-ink); }
+
+  .chart-card{ margin-bottom:30px; }
+  .chart-card svg{ width:100%; height:auto; display:block; }
+  .chart-card .axis-label{ font-family:"JetBrains Mono", monospace; font-size:10.5px; fill:var(--ink-muted); }
+  .chart-card .grid-line{ stroke:var(--grid); stroke-width:1; }
+  .chart-card .area{ fill:var(--accent); opacity:.14; }
+  .chart-card .line{ fill:none; stroke:var(--accent); stroke-width:2.2; }
+  .chart-card .pt{ fill:var(--accent); }
+  .chart-card .pt-current{ fill:var(--surface); stroke:var(--accent); stroke-width:2.5; }
+  .chart-card .annot{ font-family:"JetBrains Mono", monospace; font-size:11px; fill:var(--ink); font-weight:500; }
+  .chart-card .annot-muted{ font-family:"Public Sans", sans-serif; font-size:10.5px; fill:var(--ink-muted); }
+
+  .council-card table{ width:100%; border-collapse:collapse; font-size:14px; }
+  .council-card th{ text-align:left; font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-muted); padding:6px 10px 8px 0; border-bottom:1px solid var(--border); }
+  .council-card th.num, .council-card td.num{ text-align:right; }
+  .council-card td{ padding:9px 10px 9px 0; border-bottom:1px solid var(--border); font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; }
+  .council-card td.area{ font-family:"Public Sans",sans-serif; font-variant-numeric:normal; }
+  .council-card tr:last-child td{ border-bottom:none; }
+  .council-card tr.cheapest td.area::before{ content:"cheapest \2193  "; color:var(--good); font-family:"JetBrains Mono",monospace; font-size:10px; }
+  .council-card tr.priciest td.area::before{ content:"priciest \2191  "; color:var(--warn); font-family:"JetBrains Mono",monospace; font-size:10px; }
+
+  footer{ margin-top:44px; padding-top:16px; border-top:1px solid var(--border); font-size:12.5px; color:var(--ink-muted); }
+  footer a{ color:var(--ink-muted); text-decoration:underline; }
+
+  .empty{ border:1px dashed var(--border); border-radius:10px; padding:30px 22px; text-align:center; color:var(--ink-muted); font-size:14.5px; }
+  .empty strong{ display:block; font-family:"Big Shoulders Display", sans-serif; font-weight:700; font-size:18px; color:var(--ink); margin-bottom:6px; }
+
+  /* buying clubs */
+  .club-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:12px; margin:18px 0 26px; }
+  .club-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+  .club-card h3{ font-family:"Big Shoulders Display",sans-serif; font-weight:700; font-size:17px; margin:0 0 4px; }
+  .club-card .area{ font-size:12.5px; color:var(--accent-ink); font-family:"JetBrains Mono",monospace; margin-bottom:8px; }
+  .club-card .notes{ font-size:13.5px; color:var(--ink-muted); }
+
+  .toolbar{ display:flex; justify-content:flex-end; margin:10px 0 4px; }
+  button{ font-family:"Public Sans", sans-serif; font-size:14px; cursor:pointer; }
+  .btn{ border:1px solid var(--accent); background:var(--accent); color:#fff; padding:9px 16px; border-radius:6px; font-weight:600; }
+  .btn:hover{ filter:brightness(1.06); }
+  .btn.ghost{ background:transparent; color:var(--ink); border-color:var(--border); }
+  .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .panel{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px 22px; margin-bottom:24px; }
+  .panel h2{ font-family:"Big Shoulders Display",sans-serif; font-size:17px; margin:0 0 14px; text-transform:uppercase; }
+  .grid2{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:13px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field.span2{ grid-column:1/-1; }
+  .field label{ font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-muted); }
+  .field input, .field textarea{ font-family:"Public Sans", sans-serif; font-size:14.5px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--ink); }
+  .field textarea{ resize:vertical; min-height:52px; }
+  .panel-actions{ display:flex; gap:10px; margin-top:16px; }
+  .hint{ font-size:12.5px; color:var(--ink-muted); margin-top:9px; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav">
+    <a class="brand" href="#/"><span class="mark"></span><span class="name">Oil Gauge</span></a>
+    <a class="tab" data-tab="home" href="#/">Tracker</a>
+    <a class="tab" data-tab="clubs" href="#/clubs">Buying Clubs</a>
+  </nav>
+  <div id="view"></div>
+</div>
+
+<script>
+  const viewEl = document.getElementById('view');
+  let WEEKLY = [];   // ascending by date
+  let CLUBS = [];
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function gbp(n){ return '£' + Number(n).toFixed(2); }
+  function parseRoute(){
+    let h = decodeURIComponent(location.hash.slice(1) || '');
+    if (h.startsWith('/')) h = h.slice(1);
+    if (h === 'clubs') return 'clubs';
+    return 'home';
+  }
+  function setActiveTab(view){
+    document.querySelectorAll('.topnav .tab').forEach(a => {
+      a.classList.toggle('active', a.getAttribute('data-tab') === view);
+    });
+  }
+  function go(){
+    const r = parseRoute();
+    setActiveTab(r);
+    if (r === 'clubs') renderClubs(); else renderTracker();
+  }
+  window.addEventListener('hashchange', go);
+
+  /* ---------------- tracker ---------------- */
+  function renderTracker(){
+    viewEl.innerHTML =
+      '<p class="eyebrow">Northern Ireland &middot; updated weekly</p>' +
+      '<h1>Is now a good week to fill up?</h1>' +
+      '<p class="sub">Around 68% of NI households heat with oil, and the price swings hard — this tracks the Consumer Council’s weekly survey against its own five-year history to show where today actually sits, something their own checker doesn’t do.</p>' +
+      '<div id="tr-body"></div>';
+    if (!WEEKLY.length){
+      document.getElementById('tr-body').innerHTML = '<div class="empty"><strong>No prices loaded</strong>data/weekly.json is empty or missing.</div>';
+      return;
+    }
+    paintTracker(WEEKLY);
+  }
+
+  function paintTracker(ascending){
+    const body = document.getElementById('tr-body');
+    if (!body) return;
+    const rows = ascending.filter(r => r.date && r.niAvg500 != null);
+    const descending = rows.slice().sort((a,b) => a.date < b.date ? 1 : -1);
+    const latest = descending[0];
+    const prev = descending[1];
+    const last52 = descending.slice(0, 52);
+    const vals52 = last52.map(r => r.niAvg500);
+    const min52 = Math.min(...vals52), max52 = Math.max(...vals52);
+    const cheaperThan = vals52.filter(v => v > latest.niAvg500).length;
+    const pct = Math.round((cheaperThan / vals52.length) * 100);
+    const range52 = Math.max(max52 - min52, 1);
+    const markerPos = Math.min(100, Math.max(0, ((latest.niAvg500 - min52) / range52) * 100));
+
+    let deltaHtml = '';
+    if (prev){
+      const diff = latest.niAvg500 - prev.niAvg500;
+      const cls = diff > 0.5 ? 'up' : diff < -0.5 ? 'down' : 'flat';
+      const sign = diff > 0 ? '+' : '';
+      deltaHtml = '<span class="delta '+cls+'">'+sign+gbp(diff)+' on last week</span>';
+    }
+
+    let verdict;
+    if (pct >= 65){ verdict = 'This is a <b>relatively cheap</b> week to order — cheaper than '+pct+'% of the last 12 months.'; }
+    else if (pct <= 35){ verdict = 'This is a <b>relatively expensive</b> week — cheaper than only '+pct+'% of the last 12 months.'; }
+    else { verdict = 'This sits in the <b>middle of the range</b> — cheaper than '+pct+'% of the last 12 months.'; }
+
+    let councilHtml = '<div class="empty">No area breakdown logged for this week yet.</div>';
+    if (Array.isArray(latest.byCouncil) && latest.byCouncil.length){
+      const sorted = latest.byCouncil.slice().sort((a,b) => a.p500 - b.p500);
+      const rowsHtml = sorted.map((c,i) => {
+        const cls = i === 0 ? 'cheapest' : (i === sorted.length - 1 ? 'priciest' : '');
+        return '<tr class="'+cls+'"><td class="area">'+esc(c.area)+'</td><td class="num">'+gbp(c.p300)+'</td><td class="num">'+gbp(c.p500)+'</td><td class="num">'+gbp(c.p900)+'</td></tr>';
+      }).join('');
+      councilHtml = '<div style="overflow-x:auto;"><table><thead><tr><th>Council area</th><th class="num">300L</th><th class="num">500L</th><th class="num">900L</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+    }
+
+    body.innerHTML =
+      '<div class="hero-grid">' +
+        '<div class="card price-card">' +
+          '<div class="lbl">This week&rsquo;s NI average &middot; 500L</div>' +
+          '<div class="figure"><span class="amt num">'+gbp(latest.niAvg500)+'</span>'+deltaHtml+'</div>' +
+          '<div class="tiers">' +
+            '<div class="t">300L<b>'+gbp(latest.niAvg300)+'</b></div>' +
+            '<div class="t">900L<b>'+gbp(latest.niAvg900)+'</b></div>' +
+          '</div>' +
+          '<div class="asof">Surveyed '+esc(formatDate(latest.date))+' &middot; Consumer Council NI</div>' +
+        '</div>' +
+        '<div class="card gauge-card">' +
+          '<div class="lbl">Where this sits vs. the last 12 months</div>' +
+          '<div class="gauge-track"><div class="gauge-marker" style="left:'+markerPos.toFixed(1)+'%"></div></div>' +
+          '<div class="gauge-range"><span>'+gbp(min52)+' low</span><span>'+gbp(max52)+' high</span></div>' +
+          '<p class="gauge-verdict">'+verdict+'</p>' +
+        '</div>' +
+      '</div>' +
+
+      '<h2 class="section-title">Five-year trend &middot; 500L average</h2>' +
+      '<p class="section-note">Backfilled from the Consumer Council’s own price archive, then extended weekly from here.</p>' +
+      '<div class="card chart-card">' + buildChartSVG(ascending) + '</div>' +
+
+      '<h2 class="section-title">This week by council area</h2>' +
+      '<p class="section-note">Only available from the week we started logging area-level detail — the Council’s historical archive is NI-wide only.</p>' +
+      '<div class="card council-card">' + councilHtml + '</div>' +
+
+      '<footer>Prices sourced from the <a href="https://www.consumercouncil.org.uk/home-heating/price-checker" target="_blank" rel="noopener">Consumer Council for Northern Ireland</a>’s weekly heating oil survey. Historical figures 2021–2026 backfilled from their public archive. Data snapshot last refreshed '+esc(formatDate(ascending[ascending.length-1] ? ascending[ascending.length-1].date : latest.date))+' — this static build is updated periodically, not live; see the README for the refresh process.</footer>';
+  }
+
+  function formatDate(iso){
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00Z');
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'UTC' });
+  }
+
+  function buildChartSVG(ascending){
+    if (!ascending.length) return '<div class="empty">Not enough data yet.</div>';
+    const W = 860, H = 300, padL = 52, padR = 66, padT = 20, padB = 34;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const times = ascending.map(r => new Date(r.date + 'T00:00:00Z').getTime());
+    const vals = ascending.map(r => r.niAvg500);
+    const minT = times[0], maxT = times[times.length-1];
+    const maxV = Math.max(...vals);
+    const niceMax = Math.ceil((maxV * 1.08) / 100) * 100;
+    const minV = 0;
+    const x = t => padL + ((t - minT) / (maxT - minT || 1)) * plotW;
+    const y = v => padT + plotH - ((v - minV) / (niceMax - minV)) * plotH;
+
+    let gridSvg = '';
+    for (let g = 0; g <= niceMax; g += 100){
+      const gy = y(g);
+      gridSvg += '<line class="grid-line" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy.toFixed(1)+'" y2="'+gy.toFixed(1)+'"/>';
+      gridSvg += '<text class="axis-label" x="'+(padL-8)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">&pound;'+g+'</text>';
+    }
+    let yearSvg = '';
+    const years = [...new Set(ascending.map(r => r.date.slice(0,4)))];
+    years.forEach(yr => {
+      const t = new Date(yr+'-01-01T00:00:00Z').getTime();
+      if (t < minT || t > maxT) return;
+      const gx = x(t);
+      yearSvg += '<line class="grid-line" x1="'+gx.toFixed(1)+'" x2="'+gx.toFixed(1)+'" y1="'+padT+'" y2="'+(H-padB)+'"/>';
+      yearSvg += '<text class="axis-label" x="'+gx.toFixed(1)+'" y="'+(H-padB+16)+'" text-anchor="middle">'+yr+'</text>';
+    });
+
+    const pathPts = ascending.map((r,i) => (i===0?'M':'L') + x(times[i]).toFixed(1) + ',' + y(r.niAvg500).toFixed(1));
+    const linePath = pathPts.join(' ');
+    const areaPath = linePath + ' L' + x(times[times.length-1]).toFixed(1) + ',' + (H-padB) + ' L' + x(times[0]).toFixed(1) + ',' + (H-padB) + ' Z';
+
+    let peakIdx = 0;
+    ascending.forEach((r,i) => { if (r.niAvg500 > ascending[peakIdx].niAvg500) peakIdx = i; });
+    const peak = ascending[peakIdx];
+    const peakX = x(times[peakIdx]), peakY = y(peak.niAvg500);
+    const peakLabelY = Math.max(padT + 12, peakY - 12);
+
+    const lastIdx = ascending.length - 1;
+    const curX = x(times[lastIdx]), curY = y(ascending[lastIdx].niAvg500);
+
+    return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Five year NI average heating oil price trend, 500 litre">' +
+      gridSvg + yearSvg +
+      '<path class="area" d="'+areaPath+'"/>' +
+      '<path class="line" d="'+linePath+'"/>' +
+      '<circle class="pt" cx="'+peakX.toFixed(1)+'" cy="'+peakY.toFixed(1)+'" r="3.2"/>' +
+      '<text class="annot" x="'+peakX.toFixed(1)+'" y="'+(peakLabelY-6).toFixed(1)+'" text-anchor="middle">'+gbp(peak.niAvg500)+'</text>' +
+      '<text class="annot-muted" x="'+peakX.toFixed(1)+'" y="'+(peakLabelY+7).toFixed(1)+'" text-anchor="middle">'+esc(formatDate(peak.date))+' peak</text>' +
+      '<circle class="pt-current" cx="'+curX.toFixed(1)+'" cy="'+curY.toFixed(1)+'" r="4.5"/>' +
+    '</svg>';
+  }
+
+  /* ---------------- buying clubs ---------------- */
+  function renderClubs(){
+    viewEl.innerHTML =
+      '<p class="eyebrow">Community</p><h1>Oil buying clubs</h1>' +
+      '<p class="sub">27 clubs and 4,000+ members pool orders across NI for bulk pricing, coordinated by the Housing Executive and Bryson Energy — typically saving members £15&ndash;£30 an order. There’s no public master list, so this grows from what people report.</p>' +
+      '<p class="section-note">No local club listed? Housing Executive can match you to your nearest one: <a href="mailto:oilbuyingclubs@nihe.gov.uk">oilbuyingclubs@nihe.gov.uk</a>.</p>' +
+      '<div class="toolbar"><button class="btn" id="btn-add-club">+ Suggest a club</button></div>' +
+      '<section class="panel" id="club-panel" hidden></section>' +
+      '<div id="clubs-feed"></div>';
+    document.getElementById('btn-add-club').addEventListener('click', () => openClubForm());
+    paintClubs(CLUBS);
+  }
+
+  function paintClubs(docs){
+    const el = document.getElementById('clubs-feed');
+    if (!el) return;
+    if (!docs.length){ el.innerHTML = '<div class="empty"><strong>No clubs logged yet</strong>Suggest the first one above.</div>'; return; }
+    el.innerHTML = '<div class="club-grid">' + docs.map(c => {
+      return '<div class="club-card"><h3>'+esc(c.name)+'</h3>' +
+        (c.area ? '<div class="area">'+esc(c.area)+'</div>' : '') +
+        (c.notes ? '<div class="notes">'+esc(c.notes)+'</div>' : '') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  // Static build has no live write access, so "suggest a club" opens a
+  // pre-filled email instead of writing to a database. Whoever runs the
+  // site adds it to data/clubs.json by hand and redeploys.
+  function openClubForm(){
+    const panel = document.getElementById('club-panel');
+    panel.hidden = false;
+    panel.innerHTML =
+      '<h2>Suggest a club</h2><div class="grid2">' +
+      '<div class="field span2"><label>Name</label><input id="nc-name" placeholder="e.g. Cookstown Oil Buying Club"></div>' +
+      '<div class="field span2"><label>Area covered</label><input id="nc-area" placeholder="e.g. Coagh and Cookstown town"></div>' +
+      '<div class="field span2"><label>Notes</label><textarea id="nc-notes" placeholder="Coordinator, how to join, order deadlines..."></textarea></div>' +
+      '</div><div class="panel-actions"><button class="btn" id="nc-save">Email this in</button><button class="btn ghost" id="nc-cancel">Cancel</button></div>' +
+      '<p class="hint" id="nc-err" hidden></p>' +
+      '<p class="hint">This opens your email client — nothing is saved automatically on this version of the site.</p>';
+    panel.scrollIntoView({behavior:'smooth'});
+    document.getElementById('nc-cancel').addEventListener('click', () => { panel.hidden = true; });
+    document.getElementById('nc-save').addEventListener('click', () => {
+      const name = document.getElementById('nc-name').value.trim();
+      const err = document.getElementById('nc-err');
+      if (!name){ err.textContent = 'Name is required.'; err.hidden = false; return; }
+      const area = document.getElementById('nc-area').value.trim();
+      const notes = document.getElementById('nc-notes').value.trim();
+      const subject = encodeURIComponent('Oil Gauge — new buying club: ' + name);
+      const body = encodeURIComponent('Name: ' + name + '\nArea: ' + area + '\nNotes: ' + notes);
+      window.location.href = 'mailto:eamonnkennedy93@gmail.com?subject=' + subject + '&body=' + body;
+      panel.hidden = true;
+    });
+  }
+
+  /* ---------------- boot ---------------- */
+  async function main(){
+    try {
+      const [weeklyRes, clubsRes] = await Promise.all([
+        fetch('data/weekly.json'),
+        fetch('data/clubs.json'),
+      ]);
+      WEEKLY = weeklyRes.ok ? await weeklyRes.json() : [];
+      CLUBS = clubsRes.ok ? await clubsRes.json() : [];
+      WEEKLY.sort((a,b) => a.date < b.date ? -1 : 1);
+      CLUBS.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    } catch(e) {
+      viewEl.innerHTML = '<div class="empty"><strong>Couldn’t load price data</strong>Check that data/weekly.json is being served alongside this page.</div>';
+      return;
+    }
+    go();
+  }
+  main();
+</script>
+</body>
+</html>
